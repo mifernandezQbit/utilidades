@@ -7,21 +7,21 @@
 # Salida: True si tiene permitido el MCU, caso contrario False                          #
 # VERSION: 1.0.0                                                                        #
 #***************************************************************************************#
-def verificarSeguridadMCU(mcu,inclusiva=False, rangoMCU=[],):
-    # Normalizamos el valor ingresado
-    mcu = mcu.strip()
+import logging
+
+def verificarSeguridadMCU(mcu,inclusiva=False, rangoMCU=[]):
     existe = False
+    mcuJust=mcu.rjust(12, ' ')
     # iteramos sobre los rangos hasta encontrar uno
     for item in rangoMCU:
-        cc_desde = item.get("ccDesde", "").strip()
-        cc_hasta = item.get("ccHasta", "").strip()
-
+        cc_desde = item.get("ccDesde", "").rjust(12, ' ')
+        cc_hasta = item.get("ccHasta", "").rjust(12, ' ')
         # Si el rango está vacío, continuamos
         if not cc_desde or not cc_hasta:
             continue
 
         # Comparación alfabética (string)
-        if cc_desde <= mcu <= cc_hasta:
+        if cc_desde <= mcuJust <= cc_hasta:
             existe=True
             break
 
