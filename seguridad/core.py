@@ -14,8 +14,8 @@ def verificarSeguridadMCU(mcu,inclusiva=False, rangoMCU=[]):
     mcuJust=mcu.rjust(12, ' ')
     # iteramos sobre los rangos hasta encontrar uno
     for item in rangoMCU:
-        cc_desde = item.get("ccDesde", "").rjust(12, ' ')
-        cc_hasta = item.get("ccHasta", "").rjust(12, ' ')
+        cc_desde = item.get("ccDesde", "").replace("*BLANKS", "").rjust(12, ' ')
+        cc_hasta = item.get("ccHasta", "").replace("*BLANKS", "").rjust(12, ' ')
         # Si el rango está vacío, continuamos
         if not cc_desde or not cc_hasta:
             continue
