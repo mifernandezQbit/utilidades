@@ -2,6 +2,14 @@
 # Función: extraerErroresV2                                                             #
 # Propósito:  Recibe un diccionario con respuesta JDE (estructura desconocida)          #
 #  y devuelve una lista de errores normalizados.                                        #
+#     Recibe un diccionario con respuesta JDE (estructura desconocida) y devuelve una   #
+# lista de errores normalizados.                                                        #
+#   La función recorre el JSON de forma recursiva porque la estructura es desconocida.  #
+#    Durante el recorrido detecta errores estructurados (errors / error) y los normaliza.#
+#   Si encuentra al menos uno, ignora los mensajes de texto (jde__simpleMessage).       #
+#   Si no encuentra errores estructurados, intenta parsear el simpleMessage con         #
+# expresiones regulares.                                                                #
+#   Finalmente, devuelve una lista única de errores en un formato estándar              #
 # Entrada:  payload - Diccionario con respuesta de orquestación JDE ejecutada           #
 # Salida: lista de errores normalizada con estructura usada desde el portal             #
 # VERSION: 1.0.0                                                                        #
@@ -9,24 +17,42 @@
 import re
 
 def extraerErroresV2(payload: dict) -> list:
-    """
-    Recibe un diccionario con respuesta JDE (estructura desconocida)
-    y devuelve una lista de errores normalizados.
-    """
 
     collected_errors = []
-    found_structured_errors = False  # 🔥 clave global
+    found_structured_errors = False  # Se utiliza para decidir si imprimimos el jde_simpleMessage
 
+    # Normaliza strings
     def clean_text(value):
         if not value:
             return ""
+
+        text = str(value)
+
+        # normalizar dobles escapes (\n literal)
+        text = text.replace("\\n", " ")
+
+        # Caso unicode escapado
+        if "\\u" in text:
+            try:
+                text = text.encode("utf-8").decode("unicode_escape")
+            except:
+                pass
+
+        # Caso encoding roto (UTF-8 mal interpretado como latin1)
+        if "Ã" in text or "�" in text:
+            try:
+                text = text.encode("latin1").decode("utf-8")
+            except:
+                pass
+
         return (
-            str(value)
-            .replace("\\u000a", " ")
+            text
+            .replace("\u000a", " ")
             .replace("\n", " ")
             .strip()
-        )
+    )
 
+    # Transforma cualquier error de JDE en el formato definido
     def normalize_error(err: dict) -> dict:
         title = clean_text(err.get("TITLE", ""))
 
@@ -43,6 +69,7 @@ def extraerErroresV2(payload: dict) -> list:
             "alias": clean_text(err.get("ALIAS", ""))
         }
 
+    # Parsea el jde__simpleMessage al formato definido
     def extract_from_simple_message(message: str) -> list:
         results = []
 
@@ -84,8 +111,9 @@ def extraerErroresV2(payload: dict) -> list:
 
         return results
 
+    # Recorrido recursivo
     def recursive_scan(node):
-        nonlocal found_structured_errors  # 🔥 importante
+        nonlocal found_structured_errors  
 
         if isinstance(node, dict):
 
@@ -104,7 +132,7 @@ def extraerErroresV2(payload: dict) -> list:
             for value in node.values():
                 recursive_scan(value)
 
-            # después de recorrer, procesar
+            # después de recorrer, procesar errores
             if isinstance(errors_list, list):
                 for err in errors_list:
                     normalized = normalize_error(err)
@@ -117,6 +145,7 @@ def extraerErroresV2(payload: dict) -> list:
                     if normalized:
                         collected_errors.append(normalized)
 
+            # Si no hay errores estructurados, entonces evaluo el jde__simpleMessage
             if not found_structured_errors:
                 if "jde__simpleMessage" in node:
 
@@ -139,6 +168,7 @@ def extraerErroresV2(payload: dict) -> list:
             for item in node:
                 recursive_scan(item)
 
+    # Eliminación de duplicados
     def deduplicate(errors: list) -> list:
         seen = set()
         unique = []
@@ -151,7 +181,7 @@ def extraerErroresV2(payload: dict) -> list:
 
         return unique
 
-    # ejecución
+    # Ejecución
     recursive_scan(payload)
 
     return deduplicate(collected_errors)
