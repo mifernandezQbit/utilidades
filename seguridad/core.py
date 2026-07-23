@@ -4,30 +4,51 @@
 # Entrada:  mcu - centro de costos a verificar                                          #
 #           inclusiva - tipo de seguridad, si el rango es inclusivo o exclusivo         #
 #           rangoMCU - rango de centros de costos a los que está incluído o excluído    #
+#           accionJDE - acción a validar (Alta, Baja, Modificacion, Consulta)           #
 # Salida: True si tiene permitido el MCU, caso contrario False                          #
-# VERSION: 1.0.0                                                                        #
+# VERSION: 1.1.0                                                                        #
 #***************************************************************************************#
 import logging
 
-def verificarSeguridadMCU(mcu,inclusiva=False, rangoMCU=[]):
-    existe = False
-    mcuJust=mcu.rjust(12, ' ')
-    # iteramos sobre los rangos hasta encontrar uno
+def verificarSeguridadMCU(mcu, accionJDE, inclusiva=False, rangoMCU=[]):
+
+    mcuJust = mcu.rjust(12, ' ')
+
+    acciones = {
+        "A": "agregar",
+        "C": "cambiar",
+        "D": "borrar",
+        "I": "lectura"
+    }
+
+    campoAccion = acciones.get(accionJDE)
+
     for item in rangoMCU:
+
         cc_desde = item.get("ccDesde", "").replace("*BLANKS", "").rjust(12, ' ')
         cc_hasta = item.get("ccHasta", "").replace("*BLANKS", "").rjust(12, ' ')
-        # Si el rango está vacío, continuamos
+
         if not cc_desde or not cc_hasta:
             continue
 
-        # Comparación alfabética (string)
         if cc_desde <= mcuJust <= cc_hasta:
-            existe=True
-            break
+            #Inclusiva y Exclusiva se tratan de igual forma
+            valor = item.get(campoAccion, "N")
 
-    # Dependiendo si es inclusiva o exclusiva respondemos 
-    return existe if inclusiva else not existe
+            return valor == "Y"
 
+    # Si no se encontró ningún rango:
+    if inclusiva:
+        # Seguridad inclusiva:
+        # si no existe ningún rango aplicable, el acceso se deniega.
+        return False
+
+    # Seguridad exclusiva:
+    # Si no existe ningún rango aplicable luego de aplicar la prioridad
+    # Rol -> *PUBLIC, el acceso queda permitido.
+    return True
+
+# MIF OBSOLETA
 def completarRequestSeguridad(json,accion):
 
     jsonCompleto = json

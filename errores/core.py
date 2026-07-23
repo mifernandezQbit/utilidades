@@ -1,3 +1,7 @@
+import re
+import json
+import logging
+
 #***************************************************************************************#
 # Función: extraerErroresV2                                                             #
 # Propósito:  Recibe un diccionario con respuesta JDE (estructura desconocida)          #
@@ -14,8 +18,7 @@
 # Salida: lista de errores normalizada con estructura usada desde el portal             #
 # VERSION: 1.0.0                                                                        #
 #***************************************************************************************#
-import re
- 
+  
 def extraerErroresV2(payload: dict) -> list:
  
     collected_errors = []
@@ -253,3 +256,55 @@ def extraerErroresV2(payload: dict) -> list:
     recursive_scan(payload)
  
     return deduplicate(collected_errors)
+
+#***************************************************************************************#
+# Función: validarTamanoRespuesta                                                       #
+# Propósito: Valida el tamaño de la respuesta final antes de devolverla al portal.      #
+#   Recibe un diccionario con la respuesta ya procesada por la función OCI y el         #
+#   tamaño maximo en MB conigurado por Variable de Configuración.                       #
+#   La función serializa el contenido completo a JSON y calcula su tamaño en bytes.     #
+#   Si el tamaño supera el límite configurado, elimina el contenido del rowset para     #
+# evitar errores de Oracle Functions al devolver respuestas demasiado grandes.          #
+#   En ese caso agrega el indicador data.respuestaTooLarge = True para que el portal    #
+# pueda informar al usuario que debe acotar los criterios de búsqueda.                  #
+#   Si el tamaño no supera el límite, agrega el indicador                               #
+# data.respuestaTooLarge = False.                                                       #
+#   La función retorna el mismo payload recibido, aplicando únicamente los ajustes      #
+# necesarios para cumplir con las restricciones de tamaño de respuesta.                 #
+# Entrada: payload - Diccionario con la respuesta final a devolver al portal            #
+# Salida: payload ajustado con el indicador respuestaTooLarge y, en caso necesario,     #
+#         con el rowset vacío para evitar exceder el tamaño máximo permitido.           #
+# VERSION: 1.0.0                                                                        #
+#***************************************************************************************#
+
+def validarTamanoRespuesta(payload: dict,
+                           maxResponseSize: float = 5.9) -> dict:
+    try:
+        max_size_bytes = int(float(maxResponseSize) * 1024 * 1024)
+
+        response_size = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+
+        logging.getLogger().info(f"Tamaño respuesta: {response_size / (1024 * 1024):.2f} MB")
+
+        if response_size > max_size_bytes:
+
+            if payload.get("data") is None:
+                payload["data"] = {}
+
+            payload["rowset"] = []
+            payload["data"]["respuestaTooLarge"] = True
+
+            logging.getLogger().warning(f"Respuesta excede {max_size_bytes} bytes")
+
+        else:
+
+            if payload.get("data") is None:
+                payload["data"] = {}
+
+            payload["data"]["respuestaTooLarge"] = False
+
+    except Exception as ex:
+
+        logging.getLogger().error(f"Error validando tamaño respuesta: {str(ex)}")
+
+    return payload    
